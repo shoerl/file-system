@@ -147,7 +147,15 @@ nufs_rmdir(const char *path)
 int
 nufs_rename(const char *from, const char *to)
 {
-    int rv = -1;
+    int rv = 0;
+    int inum = tree_lookup(from);
+    if (inum == -1) {
+        rv = -ENOENT;
+        //does not exist
+    }
+    inode* node = get_inode(inum);
+    char* name = s_split(to, '/')->next->data;
+    directory_put(get_inode(0), name, inum);
     printf("rename(%s => %s) -> %d\n", from, to, rv);
     return rv;
 }
