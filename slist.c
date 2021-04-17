@@ -5,6 +5,7 @@
 #include <alloca.h>
 #include <stdio.h>
 #include "slist.h"
+#include "util.h"
 
 slist*
 s_cons(const char* text, slist* rest)
@@ -61,8 +62,8 @@ s_split(const char* text, char delim)
 int
 main(int argc, char *argv[])
 {
-   slist* list = s_split("/hello.txt", '/');
-   printf("%s\n", list->data);
-   printf("%s\n", list->next->data);
+
+   printf("%s\n", get_last_arg("/hi/one.txt"));
+   printf("%s\n", get_all_but_last_arg("/hi/one.txt"));
 }
 */

@@ -16,6 +16,7 @@
 #include "directory.h"
 #include "inode.h"
 #include "bitmap.h"
+#include "util.h"
 
 // implementation for: man 2 access
 // Checks if a file exists.
@@ -47,6 +48,7 @@ nufs_getattr(const char *path, struct stat *st)
         st->st_size = node->size;
         st->st_ino = node_num;
         st->st_uid = getuid();
+        st->st_nlink = 1;
     }
     printf("getattr(%s) -> (%d) {mode: %04o, size: %ld}\n", path, rv, st->st_mode, st->st_size);
     return rv;
@@ -94,14 +96,27 @@ nufs_mknod(const char *path, mode_t mode, dev_t rdev)
     } else {
         if (S_ISDIR(mode)) {
             //directory
+            inode* node = get_inode(num);
+            node->refs = 0;
+            node->mode = mode;
+            node->size = 0;
+            int num2 = alloc_page();
+            if (num2 == -1) {
+                rv = -ENOSPC;
+                printf("mknod(%s, %04o) -> %d\n", path, mode, rv);
+                return rv;
+            }
+            node->ptrs[0] = num2;
+            inode* location = path_to_inode(get_all_but_last_arg(path));
+            directory_put(location, get_last_arg(path), num);    
         } else if (S_ISREG(mode)) {
             //reg file
             inode* node = get_inode(num);
             node->refs = 0;
             node->mode = mode;
             node->size = 0;
-            char* name = s_split(path, '/')->next->data;
-            directory_put(get_inode(0), name, num);    
+            inode* location = path_to_inode(get_all_but_last_arg(path));
+            directory_put(location, get_last_arg(path), num);    
         }
     }
     printf("mknod(%s, %04o) -> %d\n", path, mode, rv);
@@ -129,7 +144,12 @@ nufs_unlink(const char *path)
 int
 nufs_link(const char *from, const char *to)
 {
-    int rv = -1;
+    int rv = 0;
+    int inum = tree_lookup(from);
+    if (inum == -1) {
+        rv = -ENOENT;
+    }
+    directory_put(path_to_inode(get_all_but_last_arg(to)), get_last_arg(to), inum);
     printf("link(%s => %s) -> %d\n", from, to, rv);
 	return rv;
 }
@@ -153,9 +173,8 @@ nufs_rename(const char *from, const char *to)
         rv = -ENOENT;
         //does not exist
     }
-    inode* node = get_inode(inum);
-    char* name = s_split(to, '/')->next->data;
-    directory_put(get_inode(0), name, inum);
+    directory_put(path_to_inode(get_all_but_last_arg(to)), get_last_arg(to), inum);
+    directory_delete(path_to_inode(get_all_but_last_arg(from)), get_last_arg(from));
     printf("rename(%s => %s) -> %d\n", from, to, rv);
     return rv;
 }

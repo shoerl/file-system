@@ -65,6 +65,8 @@ directory_lookup(inode* dd, const char* name)
 	void* block = pages_get_page(dd->ptrs[0]);
 	for (int ii = 0; ii < entries; ii++) {
 		dirent* entry = (dirent*) block;
+		//printf("%s\n", name);
+		//printf("%s\n", entry->name);
 		if (strcmp(name, entry->name) == 0) {
 			return entry->inum;
 		}

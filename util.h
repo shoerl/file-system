@@ -4,6 +4,8 @@
 #define UTIL_H
 
 #include <string.h>
+#include <stdlib.h>
+#include "slist.h"
 
 static int
 streq(const char* aa, const char* bb)
@@ -60,6 +62,34 @@ is_dir(char* path)
     return path[idx] == '/';
 }
 
+static char*
+get_last_arg(const char* path)
+{
+    slist* list = s_split(path, '/');
+    // keep a pointer to beginning of slist for freeing
+    slist* for_free = list;
+    while (list->next != 0) {
+        list = list->next;
+    }
+    int len = strlen(list->data);
+    char* data = malloc(len + 1);
+    strncpy(data, list->data, len + 1);
+    s_free(for_free);
+    return data;
+}
 
+static char*
+get_all_but_last_arg(const char* path)
+{
+    int len = strlen(path);
+    for (int len = strlen(path) - 1; len > -1; len--) {
+        if (path[len] == '/') {
+            char* newstring = malloc(len + 2);
+            strncpy(newstring, path, len + 1);
+            newstring[len + 1] = '\0';
+            return newstring;
+        }
+    }
+}
 
 #endif
