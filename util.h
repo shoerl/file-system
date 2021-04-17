@@ -81,6 +81,7 @@ get_last_arg(const char* path)
 static char*
 get_all_but_last_arg(const char* path)
 {
+    //wahoo
     int len = strlen(path);
     for (int len = strlen(path) - 1; len > -1; len--) {
         if (path[len] == '/') {
