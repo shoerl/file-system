@@ -62,8 +62,8 @@ s_split(const char* text, char delim)
 int
 main(int argc, char *argv[])
 {
-
-   printf("%s\n", get_last_arg("/hi/one.txt"));
-   printf("%s\n", get_all_but_last_arg("/hi/one.txt"));
+    printf("%i\n", sizeof(void*));
+   //printf("%s\n", get_last_arg("/hi/one.txt"));
+   //printf("%s\n", get_all_but_last_arg("/hi/one.txt"));
 }
 */
