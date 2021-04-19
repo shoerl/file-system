@@ -257,6 +257,7 @@ nufs_write(const char *path, const char *buf, size_t size, off_t offset, struct 
         rv = -EBADF;
     } else if (offset >= 4096) {
         void* arr = pages_get_page(node->iptr);
+        alloc_page();
         void* wrt_to = pages_get_page(((int*) arr)[0]);
         memcpy(wrt_to + offset, buf, size);
         node->size = offset + size;
