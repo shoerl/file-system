@@ -136,7 +136,8 @@ nufs_mkdir(const char *path, mode_t mode)
 int
 nufs_unlink(const char *path)
 {
-    int rv = directory_delete(get_inode(0), s_split(path, '/')->next->data);
+    inode* node = path_to_inode(get_all_but_last_arg(path));
+    int rv = directory_delete(node, get_last_arg(path));
     printf("unlink(%s) -> %d\n", path, rv);
     return rv;
 }
