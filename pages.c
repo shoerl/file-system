@@ -37,9 +37,14 @@ pages_init(const char* path)
     assert(pages_base != MAP_FAILED);
     void* pbm = get_pages_bitmap();
     if (!bitmap_get(pbm, 0)) {
+        // init block for bitmaps / 0-83 inodes
         bitmap_put(pbm, 0, 1);
     }
     if (!bitmap_get(pbm, 1)) {
+        // init block for 84-168 nodes
+        bitmap_put(pbm, 1, 1);
+    }
+    if (!bitmap_get(pbm, 2)) {
         // init root directory
         int ndnum = alloc_inode();
         assert(ndnum == 0);
@@ -47,8 +52,8 @@ pages_init(const char* path)
         node->refs = 0;
         node->mode = 040755;
         node->size = 0;
-        node->ptrs[0] = 1;
-        bitmap_put(pbm, 1, 1);
+        node->ptrs[0] = 2;
+        bitmap_put(pbm, 2, 1);
     }
 }
 
@@ -82,8 +87,10 @@ int
 alloc_page()
 {
     void* pbm = get_pages_bitmap();
-
-    for (int ii = 1; ii < PAGE_COUNT; ++ii) {
+    // page 0 = bms + inodes 0-83
+    // page 1 = inodes 84-168
+    // page 2 = root dir
+    for (int ii = 3; ii < PAGE_COUNT; ++ii) {
         if (!bitmap_get(pbm, ii)) {
             bitmap_put(pbm, ii, 1);
             printf("+ alloc_page() -> %d\n", ii);
@@ -92,6 +99,33 @@ alloc_page()
     }
 
     return -1;
+}
+
+int
+get_consecutive_pages(int amount) {
+    int start = -1;
+    if (start == -1) {
+        return -1;
+    }
+    int last = -1;
+    for (int ii = 3; ii < PAGE_COUNT; ++ii) {
+        if (!bitmap_get(pbm, ii) && start == -1) {
+            //first free page
+            start = ii;
+            last = ii;
+        } else if (!bitmap_get(pbm, ii) && ii == last + 1) {
+            last++;
+            // ii = last
+            if ((last + 1) - start == amount) {
+                for (int ii = start; ii < last + 1; )
+            }
+        } else if (bitmap_get(pbm, ii) && ii == last + 1) {
+            start = -1;
+            last = -1;
+        } else {
+            //else page is mapped and no starting point, so do nothing
+        }
+    }
 }
 
 void

@@ -6,7 +6,6 @@
 #include <sys/types.h>
 #include <errno.h>
 #include <sys/stat.h>
-//#include <dirent.h>
 #include <bsd/string.h>
 #include <assert.h>
 #include <time.h>
@@ -50,9 +49,9 @@ nufs_getattr(const char *path, struct stat *st)
         st->st_ino = node_num;
         st->st_uid = getuid();
         st->st_nlink = 1;
-	st->st_atime = node->atime;
-	st->st_ctime = node->ctime;
-	st->st_mtime = node->mtime;
+        st->st_atime = node->atime;
+        st->st_ctime = node->ctime;
+        st->st_mtime = node->mtime;
     }
     printf("getattr(%s) -> (%d) {mode: %04o, size: %ld}\n", path, rv, st->st_mode, st->st_size);
     return rv;
@@ -97,36 +96,19 @@ nufs_mknod(const char *path, mode_t mode, dev_t rdev)
     if (num == -1) {
         // no space left
         rv = -ENOSPC;
-    } else {
-        if (S_ISDIR(mode)) {
-            //directory
+    } else if (S_ISDIR(mode)) {
+        int pagenum = alloc_page();
+        if (pagenum == -1) {
+            rv = -ENOSPC;
+        } else {
             inode* node = get_inode(num);
-            node->refs = 0;
-            node->mode = mode;
-            node->size = 0;
-            int num2 = alloc_page();
-            if (num2 == -1) {
-                rv = -ENOSPC;
-                printf("mknod(%s, %04o) -> %d\n", path, mode, rv);
-                return rv;
-            }
-            node->ptrs[0] = num2;
-            inode* location = path_to_inode(get_all_but_last_arg(path));
-            directory_put(location, get_last_arg(path), num);    
-        } else if (S_ISREG(mode)) {
-            //reg file
-            inode* node = get_inode(num);
-            node->refs = 0;
-            node->mode = mode;
-            node->size = 0;
-            inode* location = path_to_inode(get_all_but_last_arg(path));
-            directory_put(location, get_last_arg(path), num); 
-	    time(&node->ctime);
-	    time(&node->mtime);
-	    time(&node->atime);
-
-	      
+            node->ptrs[0] = pagenum;
+            fill_inode_and_place(num, node, mode, path);
         }
+    } else if (S_ISREG(mode)) {
+        //reg file
+        inode* node = get_inode(num);
+        fill_inode_and_place(num, node, mode, path);
     }
     printf("mknod(%s, %04o) -> %d\n", path, mode, rv);
     return rv;
@@ -199,8 +181,7 @@ nufs_chmod(const char *path, mode_t mode)
         rv = -ENOENT;
     } else {
         node->mode = mode;
-	time( &node->ctime);
-
+        time(&node->ctime);
     }
     printf("chmod(%s, %04o) -> %d\n", path, mode, rv);
     return rv;
@@ -249,14 +230,15 @@ nufs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_fi
         int* nodes = pages_get_page(node->iptr);
         void* rd_from = pages_get_page(nodes[0]);
         memcpy(buf, rd_from + offset, size);
+        // update last accessed time
+        time(&node->atime);
         rv = size;
     } else {
         void* rd_from = pages_get_page(node->ptrs[0]);
         memcpy(buf, rd_from + offset, size);
+        // update last accessed time
+        time(&node->atime);
         rv = size;
-	time(&node->atime);
-
-
     }
     printf("read(%s, %ld bytes, @+%ld) -> %d\n", path, size, offset, rv);
     return rv;
@@ -270,12 +252,20 @@ nufs_write(const char *path, const char *buf, size_t size, off_t offset, struct 
     inode* node = path_to_inode(path);
     if (node == 0) {
         rv = -EBADF;
-    } else if (offset >= 4096) {
+    } 
+    else if (offset >= 4096) {
+        if (offset + size > node->size) {
+
+        }
         void* arr = pages_get_page(node->iptr);
         alloc_page();
         void* wrt_to = pages_get_page(((int*) arr)[0]);
         memcpy(wrt_to + offset, buf, size);
-        node->size = offset + size;
+        if (offset + size > node->size) {
+            node->size = offset + size;
+        }
+        // update last modified time
+        time(&node->mtime);
         rv = size;
     } else if (size >= 4096) {
         int dbnum = alloc_page();
@@ -289,21 +279,47 @@ nufs_write(const char *path, const char *buf, size_t size, off_t offset, struct 
         int firstpage = ((int*) block)[0];
         block = pages_get_page(firstpage);
         memcpy(block + offset, buf, size);
-        node->size = offset + size;
+        if (offset + size > node->size) {
+            node->size = offset + size;
+        }
+        // update last modified time
+        time(&node->mtime);
         rv = size;
     } else {
         int dbnum = alloc_page();
         node->ptrs[0] = dbnum;
         void* wrt_to = pages_get_page(dbnum);
         memcpy(wrt_to + offset, buf, size);
-        node->size += size;
+        if (offset + size > node->size) {
+            node->size = offset + size;
+        }
+        // update last modified time
+        time(&node->mtime);
         rv = size;
-	time(&node->mtime);
-
-
     }
     printf("write(%s, %ld bytes, @+%ld) -> %d\n", path, size, offset, rv);
     return rv;
+    /*
+    } else if (size >= 4096) {
+        int dbnum = alloc_page();
+        node->iptr = dbnum;
+        int numpages = bytes_to_pages(size);
+        void* block = pages_get_page(dbnum);
+        for (int ii = 0; ii < numpages; ii++) {
+            int page = alloc_page();
+            ((int*) block)[ii] = page;
+        }
+        int firstpage = ((int*) block)[0];
+        block = pages_get_page(firstpage);
+        memcpy(block + offset, buf, size);
+        if (offset + size > node->size) {
+            node->size = offset + size;
+        }
+        // update last modified time
+        time(&node->mtime);
+        rv = size;
+    } 
+    */
 }
 
 // Update the timestamps on a file or directory.
