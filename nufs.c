@@ -9,6 +9,7 @@
 //#include <dirent.h>
 #include <bsd/string.h>
 #include <assert.h>
+#include <time.h>
 
 #define FUSE_USE_VERSION 26
 #include <fuse.h>
@@ -49,6 +50,9 @@ nufs_getattr(const char *path, struct stat *st)
         st->st_ino = node_num;
         st->st_uid = getuid();
         st->st_nlink = 1;
+	st->st_atime = node->atime;
+	st->st_ctime = node->ctime;
+	st->st_mtime = node->mtime;
     }
     printf("getattr(%s) -> (%d) {mode: %04o, size: %ld}\n", path, rv, st->st_mode, st->st_size);
     return rv;
@@ -116,7 +120,12 @@ nufs_mknod(const char *path, mode_t mode, dev_t rdev)
             node->mode = mode;
             node->size = 0;
             inode* location = path_to_inode(get_all_but_last_arg(path));
-            directory_put(location, get_last_arg(path), num);    
+            directory_put(location, get_last_arg(path), num); 
+	    time(&node->ctime);
+	    time(&node->mtime);
+	    time(&node->atime);
+
+	      
         }
     }
     printf("mknod(%s, %04o) -> %d\n", path, mode, rv);
@@ -190,6 +199,8 @@ nufs_chmod(const char *path, mode_t mode)
         rv = -ENOENT;
     } else {
         node->mode = mode;
+	time( &node->ctime);
+
     }
     printf("chmod(%s, %04o) -> %d\n", path, mode, rv);
     return rv;
@@ -227,6 +238,7 @@ nufs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_fi
 {
     int rv = 0;
     inode* node = path_to_inode(path);
+
     if (node == 0) {
         // bad file / doesnt exist
         rv = -EBADF;
@@ -242,6 +254,9 @@ nufs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_fi
         void* rd_from = pages_get_page(node->ptrs[0]);
         memcpy(buf, rd_from + offset, size);
         rv = size;
+	time(&node->atime);
+
+
     }
     printf("read(%s, %ld bytes, @+%ld) -> %d\n", path, size, offset, rv);
     return rv;
@@ -283,6 +298,9 @@ nufs_write(const char *path, const char *buf, size_t size, off_t offset, struct 
         memcpy(wrt_to + offset, buf, size);
         node->size += size;
         rv = size;
+	time(&node->mtime);
+
+
     }
     printf("write(%s, %ld bytes, @+%ld) -> %d\n", path, size, offset, rv);
     return rv;

@@ -4,6 +4,7 @@
 #define INODE_H
 
 #include "pages.h"
+#include <time.h>
 
 typedef struct inode {
     int refs; // reference count
@@ -11,6 +12,9 @@ typedef struct inode {
     int size; // bytes
     int ptrs[2]; // direct pointers
     int iptr; // single indirect pointer
+    time_t atime;
+    time_t ctime;
+    time_t mtime;
 } inode;
 
 // sizeof(int) * 6 = sizeof(inode)
