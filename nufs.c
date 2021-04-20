@@ -253,73 +253,40 @@ nufs_write(const char *path, const char *buf, size_t size, off_t offset, struct 
     if (node == 0) {
         rv = -EBADF;
     } 
-    else if (offset >= 4096) {
+    else if (offset + size > 4096) {
         if (offset + size > node->size) {
-
+            int status = grow_inode(node, offset + size);
+            if (status == -1) {
+                rv = -ENOSPC;
+            }
         }
-        void* arr = pages_get_page(node->iptr);
-        alloc_page();
-        void* wrt_to = pages_get_page(((int*) arr)[0]);
-        memcpy(wrt_to + offset, buf, size);
-        if (offset + size > node->size) {
-            node->size = offset + size;
+        if (rv == 0) {
+            void* arr = pages_get_page(node->iptr);
+            void* wrt_to = pages_get_page(((int*) arr)[0]);
+            memcpy(wrt_to + offset, buf, size);
+            // update last modified time
+            time(&node->mtime);
+            rv = size;
         }
-        // update last modified time
-        time(&node->mtime);
-        rv = size;
-    } else if (size >= 4096) {
-        int dbnum = alloc_page();
-        node->iptr = dbnum;
-        int numpages = bytes_to_pages(size);
-        void* block = pages_get_page(dbnum);
-        for (int ii = 0; ii < numpages; ii++) {
-            int page = alloc_page();
-            ((int*) block)[ii] = page;
-        }
-        int firstpage = ((int*) block)[0];
-        block = pages_get_page(firstpage);
-        memcpy(block + offset, buf, size);
-        if (offset + size > node->size) {
-            node->size = offset + size;
-        }
-        // update last modified time
-        time(&node->mtime);
-        rv = size;
     } else {
         int dbnum = alloc_page();
-        node->ptrs[0] = dbnum;
-        void* wrt_to = pages_get_page(dbnum);
-        memcpy(wrt_to + offset, buf, size);
-        if (offset + size > node->size) {
-            node->size = offset + size;
+        if (dbnum == -1) {
+            rv == -ENOSPC;
         }
-        // update last modified time
-        time(&node->mtime);
-        rv = size;
+        if (rv == 0) {
+            node->ptrs[0] = dbnum;
+            void* wrt_to = pages_get_page(dbnum);
+            memcpy(wrt_to + offset, buf, size);
+            if (offset + size > node->size) {
+                node->size = offset + size;
+            }
+            // update last modified time
+            time(&node->mtime);
+            rv = size;
+        }
     }
     printf("write(%s, %ld bytes, @+%ld) -> %d\n", path, size, offset, rv);
     return rv;
-    /*
-    } else if (size >= 4096) {
-        int dbnum = alloc_page();
-        node->iptr = dbnum;
-        int numpages = bytes_to_pages(size);
-        void* block = pages_get_page(dbnum);
-        for (int ii = 0; ii < numpages; ii++) {
-            int page = alloc_page();
-            ((int*) block)[ii] = page;
-        }
-        int firstpage = ((int*) block)[0];
-        block = pages_get_page(firstpage);
-        memcpy(block + offset, buf, size);
-        if (offset + size > node->size) {
-            node->size = offset + size;
-        }
-        // update last modified time
-        time(&node->mtime);
-        rv = size;
-    } 
-    */
 }
 
 // Update the timestamps on a file or directory.

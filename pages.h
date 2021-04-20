@@ -12,5 +12,6 @@ void* get_pages_bitmap();
 void* get_inode_bitmap();
 int alloc_page();
 void free_page(int pnum);
+int get_consecutive_pages(int amount);
 
 #endif

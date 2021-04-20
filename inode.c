@@ -46,6 +46,49 @@ alloc_inode()
 	return inum;
 }
 
+// to handle fragmentation
+int
+grow_inode(inode* node, int size)
+{
+	// only gets called if size > 4096 so we know we need a iptr
+	if (size > 8192) {
+		void* arr = pages_get_page(node->iptr);
+		int numpages = bytes_to_pages(size) - 1;
+		int start_page = get_consecutive_pages(numpages + 1);
+		if (start_page == -1) {
+			return -1;
+		}
+		for (int ii = 0; ii < numpages; ii++) {
+			int old_page = ((int*) arr)[ii];
+			int new_page = start_page + ii;
+			((int*) arr)[ii] = new_page;
+			memcpy(pages_get_page(new_page), pages_get_page(old_page), 4096);
+			free_page(old_page);
+		}
+		((int*) arr)[numpages] = start_page + numpages;
+		node->size = size;
+		return 0;
+	} else {
+		int iptr_page = alloc_page();
+		if (iptr_page == -1) {
+			return -1;
+		}
+		void* block = pages_get_page(iptr_page);
+		int numpages = bytes_to_pages(size);
+		int start_page = get_consecutive_pages(numpages);
+		for (int ii = 0; ii < numpages; ii++) {
+			((int*) block)[ii] = start_page + ii;
+		}
+		memcpy(pages_get_page(start_page), pages_get_page(node->ptrs[0]), 4096);
+		free_page(node->ptrs[0]);
+		node->ptrs[0] = -1;
+		node->iptr = iptr_page;
+		node->size = size;
+		return 0;
+	}
+	return -1;
+}
+
 void
 fill_inode_and_place(int inum, inode* node, mode_t mode, const char* path)
 {

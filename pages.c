@@ -103,10 +103,8 @@ alloc_page()
 
 int
 get_consecutive_pages(int amount) {
+    void* pbm = get_pages_bitmap();
     int start = -1;
-    if (start == -1) {
-        return -1;
-    }
     int last = -1;
     for (int ii = 3; ii < PAGE_COUNT; ++ii) {
         if (!bitmap_get(pbm, ii) && start == -1) {
@@ -117,7 +115,10 @@ get_consecutive_pages(int amount) {
             last++;
             // ii = last
             if ((last + 1) - start == amount) {
-                for (int ii = start; ii < last + 1; )
+                for (int ii = start; ii < last + 1; ii++) {
+                    bitmap_put(pbm, ii, 1);
+                }
+                return start;
             }
         } else if (bitmap_get(pbm, ii) && ii == last + 1) {
             start = -1;
@@ -126,6 +127,7 @@ get_consecutive_pages(int amount) {
             //else page is mapped and no starting point, so do nothing
         }
     }
+    return -1;
 }
 
 void
