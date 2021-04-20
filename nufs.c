@@ -325,7 +325,15 @@ nufs_write(const char *path, const char *buf, size_t size, off_t offset, struct 
 int
 nufs_utimens(const char* path, const struct timespec ts[2])
 {
-    int rv = -1;
+    int rv = 0;
+    inode* node = path_to_inode(path);
+    if (node == 0) {
+        rv = -ENOENT;
+    }
+    //ts[0] is last access time
+    node->atime = ts[0].tv_sec;
+    //ts[1] is last modification time
+    node->mtime = ts[1].tv_sec;
     printf("utimens(%s, [%ld, %ld; %ld %ld]) -> %d\n",
            path, ts[0].tv_sec, ts[0].tv_nsec, ts[1].tv_sec, ts[1].tv_nsec, rv);
 	return rv;

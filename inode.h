@@ -14,8 +14,8 @@ typedef struct inode {
     int ptrs[2]; // direct pointers
     int iptr; // single indirect pointer
     time_t atime; // time of last access
-    time_t ctime; // time of last modification
-    time_t mtime; // time of last status change
+    time_t ctime; // time of last status change
+    time_t mtime; // time of last modification
 } inode;
 
 // sizeof(int) * 6 + sizeof(time_t) * 3 = sizeof(inode)
