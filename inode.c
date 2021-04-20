@@ -54,20 +54,29 @@ grow_inode(inode* node, int size)
 	if (size > 8192) {
 		void* arr = pages_get_page(node->iptr);
 		int numpages = bytes_to_pages(size) - 1;
-		int start_page = get_consecutive_pages(numpages + 1);
-		if (start_page == -1) {
-			return -1;
+		int n_page = alloc_page();
+		// if its the next page after last page in array
+		if (n_page - 1 == ((int*) arr)[numpages - 1]) {
+			((int*) arr)[numpages] = n_page;
+			node->size = size;
+			return 0;
+		} else {
+			free_page(n_page);
+			int start_page = get_consecutive_pages(numpages + 1);
+			if (start_page == -1) {
+				return -1;
+			}
+			for (int ii = 0; ii < numpages; ii++) {
+				int old_page = ((int*) arr)[ii];
+				int new_page = start_page + ii;
+				((int*) arr)[ii] = new_page;
+				memcpy(pages_get_page(new_page), pages_get_page(old_page), 4096);
+				free_page(old_page);
+			}
+			((int*) arr)[numpages] = start_page + numpages;
+			node->size = size;
+			return 0;
 		}
-		for (int ii = 0; ii < numpages; ii++) {
-			int old_page = ((int*) arr)[ii];
-			int new_page = start_page + ii;
-			((int*) arr)[ii] = new_page;
-			memcpy(pages_get_page(new_page), pages_get_page(old_page), 4096);
-			free_page(old_page);
-		}
-		((int*) arr)[numpages] = start_page + numpages;
-		node->size = size;
-		return 0;
 	} else {
 		int iptr_page = alloc_page();
 		if (iptr_page == -1) {

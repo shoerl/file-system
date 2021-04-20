@@ -24,9 +24,15 @@ bitmap_put(void* bm, int ii, int vv)
 	int index = ii / BITS_PER_INT;
 	// to calculate bit position in int
 	int pos = ii % BITS_PER_INT;
-	// get it to the right spot
-	vv = vv << pos;
-	((int*) bm)[index] |= vv;
+	if (vv == 1) {
+		// get it to the right spot
+		vv = vv << pos;
+		((int*) bm)[index] |= vv;
+	} else if (vv == 0) {
+		vv = 1 << pos;
+		vv = ~vv;
+		((int*) bm)[index] &= vv;
+	}
 }
 
 void

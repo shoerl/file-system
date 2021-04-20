@@ -134,6 +134,9 @@ void
 free_page(int pnum)
 {
     printf("+ free_page(%d)\n", pnum);
+    if (pnum == 0) {
+        return;
+    }
     void* pbm = get_pages_bitmap();
     bitmap_put(pbm, pnum, 0);
 }

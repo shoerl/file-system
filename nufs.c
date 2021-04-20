@@ -18,6 +18,9 @@
 #include "bitmap.h"
 #include "util.h"
 
+// declaration of nufs_truncate so can call before implementation
+int nufs_truncate(const char *path, off_t size);
+
 // implementation for: man 2 access
 // Checks if a file exists.
 int
@@ -128,6 +131,10 @@ int
 nufs_unlink(const char *path)
 {
     inode* node = path_to_inode(get_all_but_last_arg(path));
+    if (node->refs == 1) {
+        nufs_truncate(path, 0);
+    }
+    node->refs -= 1;
     int rv = directory_delete(node, get_last_arg(path));
     printf("unlink(%s) -> %d\n", path, rv);
     return rv;
@@ -138,10 +145,13 @@ nufs_link(const char *from, const char *to)
 {
     int rv = 0;
     int inum = tree_lookup(from);
+    inode* other_node = get_inode(inum);
+    other_node->refs += 1;
     if (inum == -1) {
         rv = -ENOENT;
     }
-    directory_put(path_to_inode(get_all_but_last_arg(to)), get_last_arg(to), inum);
+    inode* node = path_to_inode(get_all_but_last_arg(to));
+    directory_put(node, get_last_arg(to), inum);
     printf("link(%s => %s) -> %d\n", from, to, rv);
 	return rv;
 }
@@ -196,7 +206,29 @@ nufs_truncate(const char *path, off_t size)
         //file doesnt exist error
         rv = -ENOENT;
     } else {
-        node->size = size;
+        if (node->size > 4096) {
+            int numpages = bytes_to_pages(node->size);
+            void* blk = pages_get_page(node->iptr);
+            if (size == 0) {
+                for (int ii = 0; ii < numpages; ii++) {
+                    free_page(((int*) blk)[ii]);
+                    ((int*) blk)[ii] = 0;
+                }
+            } else {
+                int numpageskeep = bytes_to_pages(size);
+                for (int ii = numpageskeep; ii < numpages; ii++) {
+                    free_page(((int*) blk)[ii]);
+                    ((int*) blk)[ii] = 0;
+                }
+            }
+            node->size = size;
+        } else {
+            if (size == 0) {
+                free_page(node->ptrs[0]);
+                node->ptrs[0] = 0;
+            }
+            node->size = size;
+        }
     }
     printf("truncate(%s, %ld bytes) -> %d\n", path, size, rv);
     return rv;
