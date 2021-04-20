@@ -222,7 +222,7 @@ nufs_truncate(const char *path, off_t size)
                 }
             }
             node->size = size;
-        } else {
+        } else if (node->size > 0) {
             if (size == 0) {
                 free_page(node->ptrs[0]);
                 node->ptrs[0] = 0;
@@ -369,8 +369,6 @@ int
 main(int argc, char *argv[])
 {
     assert(argc > 2 && argc < 6);
-    //printf("TODO: mount %s as data file\n", argv[--argc]);
-    //storage_init(argv[--argc]);
     pages_init(argv[--argc]);
     nufs_init_ops(&nufs_ops);
     return fuse_main(argc, argv, &nufs_ops, NULL);

@@ -116,6 +116,7 @@ get_consecutive_pages(int amount) {
             // ii = last
             if ((last + 1) - start == amount) {
                 for (int ii = start; ii < last + 1; ii++) {
+                    printf("+ alloc_page() -> %i\n", ii);
                     bitmap_put(pbm, ii, 1);
                 }
                 return start;
@@ -134,9 +135,6 @@ void
 free_page(int pnum)
 {
     printf("+ free_page(%d)\n", pnum);
-    if (pnum == 0) {
-        return;
-    }
     void* pbm = get_pages_bitmap();
     bitmap_put(pbm, pnum, 0);
 }

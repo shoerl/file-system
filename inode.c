@@ -52,16 +52,17 @@ grow_inode(inode* node, int size)
 {
 	// only gets called if size > 4096 so we know we need a iptr
 	if (size > 8192) {
+		void* pbm = get_pages_bitmap();
 		void* arr = pages_get_page(node->iptr);
 		int numpages = bytes_to_pages(size) - 1;
-		int n_page = alloc_page();
-		// if its the next page after last page in array
-		if (n_page - 1 == ((int*) arr)[numpages - 1]) {
-			((int*) arr)[numpages] = n_page;
+		int last_page = ((int*) arr)[numpages - 1];
+		if (!bitmap_get(pbm, last_page + 1)) {
+			bitmap_put(pbm, last_page + 1, 1);
+			printf("+ alloc_page() -> %i\n", last_page + 1);
+			((int*) arr)[numpages] = last_page + 1;
 			node->size = size;
 			return 0;
 		} else {
-			free_page(n_page);
 			int start_page = get_consecutive_pages(numpages + 1);
 			if (start_page == -1) {
 				return -1;
