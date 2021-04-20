@@ -46,6 +46,34 @@ alloc_inode()
 	return inum;
 }
 
+int
+shrink_inode(inode* node, int size)
+{
+	if (node->size > 4096) {
+		int numpages = bytes_to_pages(node->size);
+		void* blk = pages_get_page(node->iptr);
+		if (size == 0) {
+			for (int ii = 0; ii < numpages; ii++) {
+				free_page(((int*) blk)[ii]);
+				((int*) blk)[ii] = 0;
+			}
+		} else {
+			int numpageskeep = bytes_to_pages(size);
+			for (int ii = numpageskeep; ii < numpages; ii++) {
+				free_page(((int*) blk)[ii]);
+				((int*) blk)[ii] = 0;
+			}
+		}
+	} else {
+		if (size == 0) {
+			free_page(node->ptrs[0]);
+			node->ptrs[0] = 0;
+		}
+	}
+	node->size = size;
+	return 0;
+}
+
 // to handle fragmentation
 int
 grow_inode(inode* node, int size)
@@ -75,8 +103,6 @@ grow_inode(inode* node, int size)
 				free_page(old_page);
 			}
 			((int*) arr)[numpages] = start_page + numpages;
-			node->size = size;
-			return 0;
 		}
 	} else {
 		int iptr_page = alloc_page();
@@ -93,10 +119,9 @@ grow_inode(inode* node, int size)
 		free_page(node->ptrs[0]);
 		node->ptrs[0] = -1;
 		node->iptr = iptr_page;
-		node->size = size;
-		return 0;
 	}
-	return -1;
+	node->size = size;
+	return 0;
 }
 
 void

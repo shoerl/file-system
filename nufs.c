@@ -205,30 +205,13 @@ nufs_truncate(const char *path, off_t size)
     if (node == 0) {
         //file doesnt exist error
         rv = -ENOENT;
-    } else {
-        if (node->size > 4096) {
-            int numpages = bytes_to_pages(node->size);
-            void* blk = pages_get_page(node->iptr);
-            if (size == 0) {
-                for (int ii = 0; ii < numpages; ii++) {
-                    free_page(((int*) blk)[ii]);
-                    ((int*) blk)[ii] = 0;
-                }
-            } else {
-                int numpageskeep = bytes_to_pages(size);
-                for (int ii = numpageskeep; ii < numpages; ii++) {
-                    free_page(((int*) blk)[ii]);
-                    ((int*) blk)[ii] = 0;
-                }
-            }
-            node->size = size;
-        } else if (node->size > 0) {
-            if (size == 0) {
-                free_page(node->ptrs[0]);
-                node->ptrs[0] = 0;
-            }
-            node->size = size;
-        }
+    } else if (size > node->size) {
+    	if (grow_inode(node, size) == -1) {
+    		// to keep notions of error codes limited to nufs.c
+    		rv = -ENOSPC;
+    	}
+    } else if (size < node->size) {
+    	rv = shrink_inode(node, size);
     }
     printf("truncate(%s, %ld bytes) -> %d\n", path, size, rv);
     return rv;
@@ -287,8 +270,7 @@ nufs_write(const char *path, const char *buf, size_t size, off_t offset, struct 
     } 
     else if (offset + size > 4096) {
         if (offset + size > node->size) {
-            int status = grow_inode(node, offset + size);
-            if (status == -1) {
+            if (nufs_truncate(path, offset + size) != 0) {
                 rv = -ENOSPC;
             }
         }

@@ -20,6 +20,8 @@ directory_put(inode* dd, const char* name, int inum)
 	entry->inum = inum;
 	// since we are adding another dir entry
 	dd->size += 64;
+	//update last modified time
+	time(&dd->mtime);
 	return 0;
 }
 
@@ -47,10 +49,14 @@ directory_delete(inode* dd, const char* name)
 		if (strcmp(name, entry->name) == 0) {
 			if (ii == entries - 1) {
 				dd->size -= 64;
+				//update last modified time
+				time(&dd->mtime);
 				return 0;
 			} else {
 				directory_resize(ents, entries - ii);
 				dd->size -= 64;
+				//update last modified time
+				time(&dd->mtime);
 				return 0;
 			}
 		}
@@ -65,8 +71,6 @@ directory_lookup(inode* dd, const char* name)
 	void* block = pages_get_page(dd->ptrs[0]);
 	for (int ii = 0; ii < entries; ii++) {
 		dirent* entry = (dirent*) block;
-		//printf("%s\n", name);
-		//printf("%s\n", entry->name);
 		if (strcmp(name, entry->name) == 0) {
 			return entry->inum;
 		}
@@ -79,6 +83,9 @@ int
 tree_lookup(const char* path)
 {
 	if (strcmp(path, "/") == 0) {
+		// update last accessed time
+		inode* node = get_inode(0);
+		time(&node->atime);
 		return 0;
 	}
 	int num = 0;
@@ -88,7 +95,10 @@ tree_lookup(const char* path)
 		if (num == -1) {
 			return -1;
 		}
-		num = directory_lookup(get_inode(num), list->data);
+		// update last accessed time
+		inode* node = get_inode(num);
+		time(&node->atime);
+		num = directory_lookup(node, list->data);
 		list = list->next;
 	}
 	return num;
