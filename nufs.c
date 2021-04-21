@@ -108,7 +108,7 @@ nufs_mknod(const char *path, mode_t mode, dev_t rdev)
             node->ptrs[0] = pagenum;
             fill_inode_and_place(num, node, mode, path);
         }
-    } else if (S_ISREG(mode)) {
+    } else if (S_ISREG(mode) | S_ISLNK(mode)) {
         //reg file
         inode* node = get_inode(num);
         fill_inode_and_place(num, node, mode, path);
@@ -145,13 +145,14 @@ nufs_link(const char *from, const char *to)
 {
     int rv = 0;
     int inum = tree_lookup(from);
-    inode* other_node = get_inode(inum);
-    other_node->refs += 1;
     if (inum == -1) {
         rv = -ENOENT;
+    } else {
+    	inode* from_node = get_inode(inum);
+    	from_node->refs += 1;
+    	inode* to_node = path_to_inode(get_all_but_last_arg(to));
+    	directory_put(to_node, get_last_arg(to), inum);
     }
-    inode* node = path_to_inode(get_all_but_last_arg(to));
-    directory_put(node, get_last_arg(to), inum);
     printf("link(%s => %s) -> %d\n", from, to, rv);
 	return rv;
 }
@@ -241,7 +242,7 @@ nufs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_fi
     } else if (S_ISDIR(node->mode)) {
         // if trying to read directory
         rv = -EISDIR;
-    } else if (size > 4096 || offset >= 4096) {
+    } else if ((size > 4096 || offset >= 4096) && node->ptrs[0] == -1) {
         int* nodes = pages_get_page(node->iptr);
         void* rd_from = pages_get_page(nodes[0]);
         memcpy(buf, rd_from + offset, size);
@@ -331,6 +332,40 @@ nufs_ioctl(const char* path, int cmd, void* arg, struct fuse_file_info* fi,
     return rv;
 }
 
+int
+nufs_readlink(const char* path, char* buf, size_t size)
+{
+	int rv = -1;
+	rv = nufs_read(path, buf, size, 0, 0);
+	if (rv > 0) {
+		rv = 0;
+	} else {
+		rv = -1;
+	}
+	printf("readlink(%s) -> (%i)\n", path, rv, size);
+	return rv;
+
+}
+
+int
+nufs_symlink(const char* to, const char* from)
+{
+	int rv = -1;
+	// specifies that its a symlink
+	int symlink_mode = 0120000;
+	rv = nufs_mknod(from, symlink_mode, 0);
+	if (rv == 0) {
+		rv = nufs_write(from, to, strlen(to), 0, 0);
+		if (rv > 0) {
+			rv = 0;
+		} else {
+			rv = -1;
+		}
+	}
+    printf("symlink(%s => %s) -> %d\n", from, to, rv);
+    return rv;
+}
+
 void
 nufs_init_ops(struct fuse_operations* ops)
 {
@@ -351,6 +386,8 @@ nufs_init_ops(struct fuse_operations* ops)
     ops->write    = nufs_write;
     ops->utimens  = nufs_utimens;
     ops->ioctl    = nufs_ioctl;
+    ops->symlink  = nufs_symlink;
+    ops->readlink = nufs_readlink;
 };
 
 struct fuse_operations nufs_ops;
